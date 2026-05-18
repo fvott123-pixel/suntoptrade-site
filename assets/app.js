@@ -137,11 +137,55 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
-  // RFQ submit — assemble mailto URL with all field values
+  // Optional pre-fill from ?cat=... URL param
+  (function prefillFromCat() {
+    const cat = new URLSearchParams(location.search).get('cat');
+    const productEl = document.getElementById('product');
+    if (!cat || !productEl || productEl.value) return;
+    const map = {
+      'commercial-furniture': 'Commercial furniture — ',
+      'luxury-furniture': 'Luxury furniture — ',
+      'shop-fitouts': 'Shop / supermarket fitout — ',
+      'led-lighting': 'LED commercial lighting — ',
+      'designer-kitchens': 'Designer kitchen / sintered stone — ',
+      'hifi-audio': 'Hi-fi / audio systems — ',
+      'cleaning': 'Cleaning & facilities equipment — ',
+      'retail-fixtures': 'Retail fixtures / industrial hardware — ',
+      'custom': 'Custom sourcing — '
+    };
+    productEl.value = map[cat] || '';
+    if (productEl.value) {
+      try { productEl.focus(); productEl.setSelectionRange(productEl.value.length, productEl.value.length); } catch (e) {}
+    }
+  })();
+
+  // Normalize form values to match Notion select options
+  function normalizeTimeline(v) {
+    return (v || '').replace(/–|—/g, '-'); // en/em dash -> hyphen
+  }
+  function normalizeGst(v) {
+    const map = {
+      'GST-registered-claiming': 'Claiming',
+      'GST-registered-not-claiming': 'Not claiming',
+      'Not-GST-registered': 'Private / non-registered'
+    };
+    return map[v] || v;
+  }
+  function parseMoney(v) {
+    if (!v) return 0;
+    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ''));
+    return isNaN(n) ? 0 : n;
+  }
+
+  // RFQ submit — POST to Cloudflare Pages Function (with mailto fallback if offline)
+  const RFQ_WEBHOOK = '/api/rfq';
   const form = document.querySelector('form.rfq-form');
   if (form) {
-    form.addEventListener('submit', function (e) {
+    form.addEventListener('submit', async function (e) {
       e.preventDefault();
+      const msg = form.querySelector('.form-message');
+      const submitBtn = form.querySelector('button[type="submit"]');
+
       const required = form.querySelectorAll('[required]');
       let ok = true;
       required.forEach(r => {
@@ -153,38 +197,87 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
       if (!ok) {
-        const msg = form.querySelector('.form-message');
-        if (msg) msg.textContent = 'Please complete all required fields and tick all three acknowledgments before submitting.';
+        if (msg) { msg.textContent = 'Please complete all required fields and tick all three acknowledgments before submitting.'; msg.style.color = 'var(--accent)'; }
         return;
       }
+
+      // Build payload
       const data = new FormData(form);
-      const lines = [];
-      for (const [k, v] of data.entries()) {
-        if (k.startsWith('ack_')) continue;
-        if (k === 'photos') continue; // handled separately
-        lines.push(k.replace(/_/g, ' ') + ': ' + v);
+      const photoNames = (photoInput && photoInput.files && photoInput.files.length)
+        ? Array.from(photoInput.files).map(f => f.name + ' (' + Math.round(f.size / 1024) + ' KB)').join(', ')
+        : '';
+
+      const payload = {
+        name: data.get('name') || '',
+        email: data.get('email') || '',
+        phone: data.get('phone') || '',
+        wechat: data.get('wechat') || '',
+        buyer_type: data.get('buyer_type') || '',
+        company: data.get('company') || '',
+        abn: data.get('abn') || '',
+        product: data.get('product') || '',
+        quantity: data.get('quantity') || '',
+        order_value: data.get('order_value') || '',
+        order_value_num: parseMoney(data.get('order_value')),
+        target_price: data.get('target_price') || '',
+        timeline: normalizeTimeline(data.get('timeline')),
+        destination: data.get('destination') || '',
+        gst_pref: normalizeGst(data.get('gst_pref')),
+        notes: data.get('notes') || '',
+        photos: photoNames,
+        source_page: location.pathname,
+        submitted_at: new Date().toISOString()
+      };
+
+      // Lock UI during send
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; submitBtn.style.cursor = 'wait'; }
+      if (msg) { msg.textContent = 'Sending your RFQ…'; msg.style.color = 'var(--muted)'; }
+
+      let sent = false;
+      try {
+        const res = await fetch(RFQ_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        sent = res.ok;
+      } catch (err) {
+        sent = false;
       }
 
-      // List photo filenames so the recipient knows what to expect
-      let photoNote = '';
-      if (photoInput && photoInput.files && photoInput.files.length > 0) {
-        const names = Array.from(photoInput.files).map(f => '- ' + f.name + ' (' + Math.round(f.size / 1024) + ' KB)');
-        photoNote = '\n\nReference photos to attach (' + photoInput.files.length + '):\n' + names.join('\n') +
-                    '\n\nIMPORTANT: please drag the listed files into this email before sending. ' +
-                    'Browser email links cannot pre-attach files automatically.';
+      if (sent) {
+        // Replace form with confirmation
+        const card = form.closest('.form') || form;
+        card.innerHTML = '<div style="text-align:center;padding:1.5rem 0;">' +
+          '<div style="width:64px;height:64px;border-radius:50%;background:var(--accent-soft);color:var(--accent);' +
+          'display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;' +
+          'font-family:Fraunces,serif;font-size:1.7rem;font-weight:500;border:1px solid var(--accent);">✓</div>' +
+          '<h2 style="font-family:Fraunces,serif;font-weight:500;font-size:1.65rem;letter-spacing:-0.015em;margin-bottom:0.7rem;">Got your RFQ.</h2>' +
+          '<p style="color:var(--muted);max-width:520px;margin:0 auto 1.25rem;line-height:1.6;">' +
+          'A confirmation email has been sent to <strong style="color:var(--ink);">' + (payload.email || 'your inbox') + '</strong> ' +
+          'with quote turnaround details. Our sourcing team will review your brief within 48 business hours and follow up.</p>' +
+          (photoNames ?
+            '<p style="font-size:0.88rem;color:var(--muted);max-width:520px;margin:0 auto 1.25rem;">' +
+            '<strong style="color:var(--ink);">Reference files:</strong> if you weren\'t able to attach your photos / drawings, reply to the confirmation email with them attached.</p>' : '') +
+          '<p class="fineprint" style="font-size:0.78rem;">Reference: ' + payload.submitted_at.split('T')[0] + ' · ' + (payload.name || 'website') + '</p>' +
+          '</div>';
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        // Fallback: open mailto draft so RFQ isn't lost
+        if (msg) { msg.textContent = 'Network hiccup — opening your email instead. Your RFQ will land in our inbox either way.'; msg.style.color = 'var(--warn, #B8721A)'; }
+        const lines = Object.entries(payload)
+          .filter(([k]) => !['order_value_num','submitted_at','source_page'].includes(k))
+          .map(([k, v]) => k.replace(/_/g, ' ') + ': ' + v);
+        const subject = encodeURIComponent('SunTop Trade — RFQ from ' + (payload.name || 'website'));
+        const body = encodeURIComponent(
+          'New RFQ submitted via suntoptrade.com\n\n' +
+          lines.join('\n') +
+          '\n\nAcknowledgments: delivery responsibility / sea freight timeline / T&Cs all confirmed.\n' +
+          (photoNames ? '\nReference files (please attach to this email):\n' + photoNames + '\n' : '')
+        );
+        setTimeout(() => { window.location.href = 'mailto:sales@suntoptrade.com?subject=' + subject + '&body=' + body; }, 1500);
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; submitBtn.style.cursor = ''; }
       }
-
-      const subject = encodeURIComponent('Sun Top — RFQ from ' + (data.get('name') || 'website'));
-      const body = encodeURIComponent(
-        'New RFQ submitted via suntoptrade.com\n\n' +
-        lines.join('\n') +
-        '\n\nAcknowledgments:\n' +
-        '- Delivery responsibility: confirmed\n' +
-        '- Sea freight timeline: confirmed\n' +
-        '- T&Cs accepted: confirmed\n' +
-        photoNote
-      );
-      window.location.href = 'mailto:sales@suntoptrade.com?subject=' + subject + '&body=' + body;
     });
   }
 });

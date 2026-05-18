@@ -152,7 +152,7 @@ section.dark .page-eyebrow::before { background: var(--accent-bright); }
   position: absolute; inset: 0;
   background-size: cover; background-position: center;
   background-color: var(--bg-deep);
-  filter: brightness(1.32) saturate(1.12) contrast(1.04);
+  filter: brightness(1.22) saturate(1.45) contrast(1.14);
 }
 .cover-slide.active .cover-photo {
   animation: heroZoom 7s ease-out forwards;
@@ -164,10 +164,12 @@ section.dark .page-eyebrow::before { background: var(--accent-bright); }
 .cover-photo::after {
   content: ''; position: absolute; inset: 0;
   background:
-    /* very soft top vignette so nav reads */
-    linear-gradient(180deg, rgba(22,22,20,0.22) 0%, rgba(22,22,20,0.0) 22%, rgba(22,22,20,0.0) 58%, rgba(22,22,20,0.62) 100%),
-    /* gentle left scrim only where the headline sits */
-    linear-gradient(90deg, rgba(22,22,20,0.42) 0%, rgba(22,22,20,0.0) 45%);
+    /* soft top + stronger bottom for nav and progress bars */
+    linear-gradient(180deg, rgba(22,22,20,0.18) 0%, rgba(22,22,20,0.0) 18%, rgba(22,22,20,0.0) 55%, rgba(22,22,20,0.65) 100%),
+    /* heavier left scrim so headline reads against ANY photo, fades by middle */
+    linear-gradient(90deg, rgba(22,22,20,0.62) 0%, rgba(22,22,20,0.35) 30%, rgba(22,22,20,0.0) 60%),
+    /* targeted dark pad bottom-left where the headline + CTAs actually sit */
+    radial-gradient(ellipse 70% 55% at 28% 78%, rgba(22,22,20,0.55) 0%, rgba(22,22,20,0.0) 75%);
 }
 .cover-overlay {
   position: relative; z-index: 3;
@@ -199,6 +201,7 @@ section.dark .page-eyebrow::before { background: var(--accent-bright); }
   line-height: 0.98; letter-spacing: -0.035em;
   color: #fff; margin-bottom: 1.5rem;
   font-variation-settings: "SOFT" 30, "WONK" 0, "opsz" 144;
+  text-shadow: 0 2px 24px rgba(0,0,0,0.55), 0 1px 4px rgba(0,0,0,0.4);
 }
 .cover-headline h1 em {
   font-style: italic; font-weight: 400;
@@ -210,8 +213,9 @@ section.dark .page-eyebrow::before { background: var(--accent-bright); }
 }
 .cover-headline .lede {
   font-size: clamp(1.05rem, 1.35vw, 1.25rem);
-  color: rgba(255,255,255,0.88); max-width: 640px;
+  color: rgba(255,255,255,0.92); max-width: 640px;
   line-height: 1.55; font-weight: 400;
+  text-shadow: 0 1px 12px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.4);
 }
 .cover-actions { display: flex; flex-wrap: wrap; gap: 0.85rem; margin-bottom: 1.75rem; }
 .cover-btn {
@@ -813,11 +817,66 @@ footer.site-foot { background: var(--bg-deep); color: var(--bg); padding: 5rem 2
 @media (max-width: 560px) {
   .strip-grid, .trust-grid, .cat-grid { grid-template-columns: 1fr; }
   .foot-grid { grid-template-columns: 1fr; gap: 2rem; }
-  .cover-masthead { flex-direction: column; align-items: flex-start; gap: 0.7rem; }
+  .cover-masthead { flex-direction: column; align-items: flex-start; gap: 0.6rem; padding-bottom: 0.9rem; }
   .compare-row { grid-template-columns: 1.4fr 1fr 1fr; }
   .compare-cell { padding: 0.7rem 0.55rem; font-size: 0.82rem; }
-  .strip-card .strip-img { height: 200px; flex: 0 0 200px; }
+  .strip-card .strip-img { height: 220px; flex: 0 0 220px; }
+  .partner-logo { height: 110px; }
+  .partner-logo span { font-size: 2.2rem; }
+
+  /* Mobile hero: tighter padding, smaller type, compact product card */
+  .cover-overlay { padding: 1.4rem 1.25rem; min-height: calc(100vh - 88px); }
+  .cover-headline { margin-bottom: 1.25rem; }
+  .cover-headline h1 { font-size: clamp(2rem, 9vw, 2.7rem); margin-bottom: 0.85rem; }
+  .cover-headline .lede {
+    font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.1rem;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .cover-btn { padding: 0.85rem 1.25rem; font-size: 0.84rem; }
+  .cover-actions { gap: 0.55rem; margin-bottom: 1rem; }
+  .cover-main { gap: 1rem; }
+
+  .cover-product { padding: 0.25rem 0 0.25rem 1.1rem; }
+  .cover-product h3 { font-size: 1.2rem; margin-bottom: 0.4rem; }
+  .cover-product p {
+    font-size: 0.8rem; margin-bottom: 0.75rem;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .cover-product .product-stats { padding: 0.6rem 0; margin-bottom: 0.7rem; }
+  .cover-product .product-stats strong { font-size: 0.88rem; }
+  .cover-progress { gap: 0.4rem; padding-top: 1rem; }
+  .prog-bar { min-width: 0; flex: 1; }
+  .prog-counter { width: 100%; text-align: right; margin-left: 0; margin-top: 0.45rem; font-size: 0.65rem; }
+
+  /* Background positions skewed slightly right for portrait viewports */
+  .cover-photo { background-position: 65% center; }
+
+  /* Trim vertical space in section blocks on phones */
+  section { padding: 3rem 1.25rem; }
+  .section-head { margin-bottom: 2rem; }
+  .section-head h2 { font-size: clamp(1.7rem, 6vw, 2.2rem); }
+  .step { grid-template-columns: 48px 1fr; padding: 1.25rem; gap: 0.85rem; }
+  .step-num { font-size: 2rem; }
+  .step h3 { font-size: 1.25rem; }
+  .scenario-card { padding: 1.5rem 1.25rem; }
+  .voice-card { padding: 1.4rem 1.25rem; }
+  .risk-card { padding: 2rem 1.5rem; gap: 1.25rem; }
+  .risk-badge { width: 72px; height: 72px; font-size: 1.15rem; }
+  .qa-item summary { padding: 1.1rem 1.25rem; font-size: 0.98rem; }
+  .qa-item .qa-body { padding: 0 1.25rem 1.25rem; }
+  .form { padding: 1.4rem 1.25rem; }
+  .disclosure { padding: 1.5rem 1.5rem; }
+  .trust-ticker { padding: 0.85rem 0; }
+  .ticker-track { font-size: 0.68rem; gap: 2rem; }
 }
+
+@media (max-width: 380px) {
+  .cover-headline h1 { font-size: 1.85rem; line-height: 1.05; }
+  .cover-btn.ghost { display: none; } /* keep only primary CTA on very narrow screens */
+  .compare-cell { font-size: 0.74rem; padding: 0.55rem 0.4rem; }
+  .compare-row.compare-head .compare-cell { font-size: 0.62rem; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ticker-track, .cover-headline h1 em, .cover-masthead .cover-issue::before { animation: none; }
 }
