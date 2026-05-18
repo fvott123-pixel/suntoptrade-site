@@ -137,6 +137,159 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
 
+  // Address autocomplete on the destination field (Australia only, via OpenStreetMap Nominatim — keyless)
+  (function setupAddressAutocomplete() {
+    const input = document.getElementById('destination');
+    if (!input) return;
+    input.setAttribute('autocomplete', 'off');
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'addr-suggest';
+    dropdown.setAttribute('role', 'listbox');
+    dropdown.style.cssText =
+      'position:absolute;left:0;right:0;top:100%;background:#fff;' +
+      'border:1px solid var(--line-strong, rgba(0,0,0,0.22));border-top:0;border-radius:0 0 4px 4px;' +
+      'box-shadow:0 10px 28px rgba(15,15,14,0.10);z-index:10;display:none;max-height:280px;overflow-y:auto;font-size:0.92rem;';
+
+    // Wrap input in a relatively-positioned container
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    wrap.appendChild(dropdown);
+
+    let timer = null;
+    let abortCtrl = null;
+    let lastQuery = '';
+    let activeIndex = -1;
+    let currentResults = [];
+
+    function clearDropdown() {
+      dropdown.style.display = 'none';
+      dropdown.innerHTML = '';
+      activeIndex = -1;
+      currentResults = [];
+    }
+
+    function renderResults(results) {
+      currentResults = results;
+      if (!results.length) { clearDropdown(); return; }
+      dropdown.innerHTML = results.map((r, i) =>
+        '<div class="addr-item" data-i="' + i + '" role="option" style="padding:0.7rem 0.95rem;cursor:pointer;border-bottom:1px solid var(--line, rgba(0,0,0,0.08));line-height:1.4;color:var(--ink);' + (i === 0 ? '' : '') + '">' +
+        '<div style="font-weight:500;color:var(--ink);">' + escapeText(r.primary) + '</div>' +
+        (r.secondary ? '<div style="font-size:0.82rem;color:var(--muted, #756E64);margin-top:2px;">' + escapeText(r.secondary) + '</div>' : '') +
+        '</div>'
+      ).join('');
+      dropdown.style.display = 'block';
+      activeIndex = -1;
+    }
+
+    function escapeText(s) {
+      return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatNominatim(r) {
+      // r.address has structured fields; build "Street, Suburb VIC 3084, Australia"
+      const a = r.address || {};
+      const streetParts = [];
+      if (a.house_number) streetParts.push(a.house_number);
+      if (a.road) streetParts.push(a.road);
+      const street = streetParts.join(' ');
+      const suburb = a.suburb || a.city || a.town || a.village || a.municipality || a.county || '';
+      const stateMap = {
+        'New South Wales': 'NSW', 'Victoria': 'VIC', 'Queensland': 'QLD',
+        'South Australia': 'SA', 'Western Australia': 'WA', 'Tasmania': 'TAS',
+        'Northern Territory': 'NT', 'Australian Capital Territory': 'ACT'
+      };
+      const state = stateMap[a.state] || a.state || '';
+      const postcode = a.postcode || '';
+      const primary = street || suburb || r.display_name.split(',')[0];
+      const secondaryParts = [];
+      if (street && suburb) secondaryParts.push(suburb);
+      if (state) secondaryParts.push(state);
+      if (postcode) secondaryParts.push(postcode);
+      secondaryParts.push('Australia');
+      const secondary = secondaryParts.filter(Boolean).join(' ');
+      // The full string we paste into the field on selection
+      const full = [street, suburb, [state, postcode].filter(Boolean).join(' '), 'Australia'].filter(Boolean).join(', ');
+      return { primary, secondary, full };
+    }
+
+    async function doSearch(q) {
+      if (abortCtrl) abortCtrl.abort();
+      abortCtrl = new AbortController();
+      try {
+        const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&countrycodes=au&q=' + encodeURIComponent(q);
+        const res = await fetch(url, {
+          signal: abortCtrl.signal,
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) return;
+        const raw = await res.json();
+        const results = (Array.isArray(raw) ? raw : []).map(formatNominatim);
+        renderResults(results);
+      } catch (e) {
+        if (e.name !== 'AbortError') console.warn('Address search failed', e);
+      }
+    }
+
+    input.addEventListener('input', () => {
+      const q = input.value.trim();
+      if (q.length < 3) { clearDropdown(); return; }
+      if (q === lastQuery) return;
+      lastQuery = q;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => doSearch(q), 350); // debounce — also stays within Nominatim's 1 req/sec policy
+    });
+
+    // Pick on click
+    dropdown.addEventListener('click', (e) => {
+      const item = e.target.closest('.addr-item');
+      if (!item) return;
+      const idx = Number(item.dataset.i);
+      const r = currentResults[idx];
+      if (!r) return;
+      input.value = r.full;
+      input.style.borderColor = '';
+      clearDropdown();
+      input.focus();
+    });
+
+    // Keyboard nav
+    input.addEventListener('keydown', (e) => {
+      if (dropdown.style.display === 'none') return;
+      const items = dropdown.querySelectorAll('.addr-item');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % items.length;
+        highlight();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = (activeIndex - 1 + items.length) % items.length;
+        highlight();
+      } else if (e.key === 'Enter' && activeIndex >= 0) {
+        e.preventDefault();
+        items[activeIndex].click();
+      } else if (e.key === 'Escape') {
+        clearDropdown();
+      }
+    });
+
+    function highlight() {
+      const items = dropdown.querySelectorAll('.addr-item');
+      items.forEach((it, i) => {
+        it.style.background = i === activeIndex ? 'var(--accent-soft, rgba(184,137,59,0.10))' : '';
+      });
+      if (activeIndex >= 0) items[activeIndex].scrollIntoView({ block: 'nearest' });
+    }
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) clearDropdown();
+    });
+  })();
+
   // Optional pre-fill from ?cat=... URL param
   (function prefillFromCat() {
     const cat = new URLSearchParams(location.search).get('cat');
