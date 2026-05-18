@@ -1,0 +1,18 @@
+# Backups (kept locally, never deployed)
+*.bak
+*.bak_v19
+*.bak_v21
+*.tmp
+
+# Hero photo originals (large, only optimised versions deploy)
+assets/hero/_original_v19/
+
+# OneDrive system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor cruft
+.vscode/
+.idea/
+*.swp
