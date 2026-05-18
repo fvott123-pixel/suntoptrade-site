@@ -827,11 +827,26 @@ footer.site-foot { background: var(--bg-deep); color: var(--bg); padding: 5rem 2
   /* Mobile hero: tighter padding, smaller type, compact product card */
   .cover-overlay { padding: 1.4rem 1.25rem; min-height: calc(100vh - 88px); }
   .cover-headline { margin-bottom: 1.25rem; }
-  .cover-headline h1 { font-size: clamp(2rem, 9vw, 2.7rem); margin-bottom: 0.85rem; }
-  .cover-headline .lede {
-    font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.1rem;
-    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+  .cover-headline h1 {
+    font-size: clamp(2rem, 9vw, 2.7rem); margin-bottom: 0.85rem;
+    /* Heavier shadow on mobile — narrower viewport means text sits on busier photo area */
+    text-shadow: 0 2px 18px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.7), 0 0 32px rgba(0,0,0,0.45);
   }
+  .cover-headline .lede {
+    font-size: 0.95rem; line-height: 1.5; margin-bottom: 1.1rem;
+    color: #fff; font-weight: 500;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.85), 0 1px 3px rgba(0,0,0,0.7);
+  }
+  /* Mobile-only: heavier dark scrim across the whole bottom half so text reads on every photo */
+  .cover-photo::after {
+    background:
+      linear-gradient(180deg, rgba(22,22,20,0.30) 0%, rgba(22,22,20,0.0) 18%, rgba(22,22,20,0.35) 40%, rgba(22,22,20,0.78) 100%),
+      linear-gradient(90deg, rgba(22,22,20,0.45) 0%, rgba(22,22,20,0.20) 50%, rgba(22,22,20,0.0) 100%);
+  }
+  /* Reset background position to center for portrait viewports — 65% shift was for landscape */
+  .cover-photo { background-position: center center; }
+  .cover-masthead, .cover-footnote { text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
   .cover-btn { padding: 0.85rem 1.25rem; font-size: 0.84rem; }
   .cover-actions { gap: 0.55rem; margin-bottom: 1rem; }
   .cover-main { gap: 1rem; }
